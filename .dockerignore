@@ -1,0 +1,47 @@
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Docker files (not needed inside image)
+docker-compose*.yml
+.dockerignore
+
+# Dev/Test
+node_modules
+npm-debug.log
+yarn-error.log
+.npm
+
+# Laravel dev stuff
+storage/logs/*.log
+storage/framework/cache/data/*
+storage/framework/sessions/*
+storage/framework/testing/*
+storage/framework/views/*
+bootstrap/cache/*.php
+
+# Editor & OS
+.idea
+.vscode
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Documentation
+README.md
+CHANGELOG.md
+*.md
+
+# PHP dev tools
+phpunit.xml
+.phpunit.result.cache
+.phpunit.cache
+
+# Tests
+tests
+
+# CI/CD
+.styleci.yml
+.editorconfig
