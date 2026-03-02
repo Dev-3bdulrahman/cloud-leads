@@ -74,6 +74,7 @@ RUN chown -R www-data:www-data /var/www/html \
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
+COPY docker/php/www.conf /usr/local/etc/php-fpm.d/www.conf
 
 # Copy and set entrypoint
 COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
