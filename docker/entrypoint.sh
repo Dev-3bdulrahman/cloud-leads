@@ -41,12 +41,9 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# Run migrations and seeders
+# Run migrations    
 echo "Running migrations..."
 php artisan migrate --force
-
-echo "Running seeders..."
-php artisan db:seed --force
 
 # Start supervisor (manages nginx + php-fpm + queue)
 echo "Starting services via Supervisor..."
