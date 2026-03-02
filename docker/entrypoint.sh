@@ -19,8 +19,6 @@ until php -r "new PDO('mysql:host=' . getenv('DB_HOST') . ';port=' . getenv('DB_
     if [ $COUNT -ge $MAX_TRIES ]; then
         echo "Error: MySQL is not reachable after $MAX_TRIES attempts."
         echo "Tip: Check if DB_HOST is correct (it shouldn't be 127.0.0.1 in Docker)."
-        # Exit or continue anyway? Usually better to exit if migrations depend on it.
-        # exit 1
         break
     fi
     sleep 2
@@ -28,15 +26,27 @@ until php -r "new PDO('mysql:host=' . getenv('DB_HOST') . ';port=' . getenv('DB_
 done
 echo "MySQL check finished."
 
+# Run Composer install if vendor is missing or as requested
+if [ ! -d "vendor" ]; then
+    echo "Vendor directory missing. Running composer install..."
+    composer install --optimize-autoloader --no-dev --no-interaction
+else
+    echo "Vendor directory exists."
+    # Optional: composer install --optimize-autoloader --no-dev --no-interaction
+fi
+
 # Run Laravel setup commands
 echo "Caching configuration..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# Run migrations (only if DB connection succeeded or we want to try)
+# Run migrations and seeders
 echo "Running migrations..."
 php artisan migrate --force
+
+echo "Running seeders..."
+php artisan db:seed --force
 
 # Start supervisor (manages nginx + php-fpm + queue)
 echo "Starting services via Supervisor..."
