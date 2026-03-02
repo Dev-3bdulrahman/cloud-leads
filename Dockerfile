@@ -1,3 +1,13 @@
+# Stage 1: Build Node.js assets
+FROM node:20-alpine AS node-builder
+WORKDIR /app
+COPY package*.json ./
+# Use npm install as a fallback since package-lock.json might be missing
+RUN npm install
+COPY . .
+RUN npm run build
+
+# Stage 2: Final PHP + Nginx image
 FROM php:8.2-fpm-alpine
 
 LABEL maintainer="cloud.aaifgroup.com"
@@ -17,9 +27,8 @@ RUN apk add --no-cache \
     libzip-dev \
     oniguruma-dev \
     icu-dev \
-    nodejs \
-    npm \
-    tzdata
+    tzdata \
+    $PHPIZE_DEPS
 
 # Set timezone
 ENV TZ=UTC
@@ -28,18 +37,15 @@ RUN cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
 # Install PHP extensions
 RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
     && docker-php-ext-install -j$(nproc) \
-        pdo_mysql \
-        mbstring \
-        exif \
-        pcntl \
-        bcmath \
-        gd \
-        zip \
-        intl \
-        opcache
-
-# Install Redis extension
-RUN apk add --no-cache $PHPIZE_DEPS \
+    pdo_mysql \
+    mbstring \
+    exif \
+    pcntl \
+    bcmath \
+    gd \
+    zip \
+    intl \
+    opcache \
     && pecl install redis \
     && docker-php-ext-enable redis \
     && apk del $PHPIZE_DEPS
@@ -53,18 +59,18 @@ WORKDIR /var/www/html
 # Copy application files
 COPY . .
 
+# Copy built assets from Stage 1
+COPY --from=node-builder /app/public/build ./public/build
+
 # Install PHP dependencies (production)
 RUN composer install --optimize-autoloader --no-dev --no-interaction --no-progress
-
-# Install and build Node.js assets
-RUN npm ci && npm run build && rm -rf node_modules
 
 # Set correct permissions
 RUN chown -R www-data:www-data /var/www/html \
     && chmod -R 755 /var/www/html/storage \
     && chmod -R 755 /var/www/html/bootstrap/cache
 
-# Copy configuration files
+# Copy configuration files (ensure these paths exist in your repo)
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini

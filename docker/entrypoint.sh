@@ -6,24 +6,38 @@ mkdir -p /var/log/supervisor
 mkdir -p /var/log/nginx
 
 # Fix storage permissions
+echo "Setting permissions..."
 chown -R www-data:www-data /var/www/html/storage /var/www/html/bootstrap/cache
 chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
 
-# Wait for MySQL to be ready
-echo "Waiting for MySQL..."
+# Wait for MySQL to be ready with a limit
+echo "Waiting for MySQL (Host: $DB_HOST)..."
+MAX_TRIES=30
+COUNT=0
 until php -r "new PDO('mysql:host=' . getenv('DB_HOST') . ';port=' . getenv('DB_PORT') . ';dbname=' . getenv('DB_DATABASE'), getenv('DB_USERNAME'), getenv('DB_PASSWORD'));" 2>/dev/null; do
+    COUNT=$((COUNT + 1))
+    if [ $COUNT -ge $MAX_TRIES ]; then
+        echo "Error: MySQL is not reachable after $MAX_TRIES attempts."
+        echo "Tip: Check if DB_HOST is correct (it shouldn't be 127.0.0.1 in Docker)."
+        # Exit or continue anyway? Usually better to exit if migrations depend on it.
+        # exit 1
+        break
+    fi
     sleep 2
-    echo "MySQL not ready yet..."
+    echo "MySQL not ready yet (Attempt $COUNT/$MAX_TRIES)..."
 done
-echo "MySQL is ready!"
+echo "MySQL check finished."
 
 # Run Laravel setup commands
+echo "Caching configuration..."
 php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# Run migrations
+# Run migrations (only if DB connection succeeded or we want to try)
+echo "Running migrations..."
 php artisan migrate --force
 
 # Start supervisor (manages nginx + php-fpm + queue)
+echo "Starting services via Supervisor..."
 exec supervisord -c /etc/supervisor/conf.d/supervisord.conf
