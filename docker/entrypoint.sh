@@ -50,7 +50,11 @@ php artisan db:seed --force || echo "Warning: Seeding failed. Continuing anyway.
 
 # Debug: list listening ports
 echo "Checking listening ports..."
-netstat -tlnp || echo "netstat not found"
+netstat -tln || echo "netstat not found"
+
+# Check Nginx config
+echo "Testing Nginx configuration..."
+nginx -t
 
 # Start supervisor (manages nginx + php-fpm + queue)
 echo "Starting services via Supervisor..."

@@ -84,6 +84,7 @@ RUN chown -R www-data:www-data /var/www/html \
 RUN mkdir -p /var/run && chown -R www-data:www-data /var/run
 
 # Copy configuration files (ensure these paths exist in your repo)
+RUN rm -rf /etc/nginx/http.d/*
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
 COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
