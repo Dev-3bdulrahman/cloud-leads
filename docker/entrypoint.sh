@@ -41,10 +41,17 @@ php artisan config:cache
 php artisan route:cache
 php artisan view:cache
 
-# Run migrations    
+# Run migrations and seeders
 echo "Running migrations..."
 php artisan migrate --force
 
+echo "Running seeders..."
+php artisan db:seed --force
+
+# Debug: list listening ports
+echo "Checking listening ports..."
+netstat -tlnp || echo "netstat not found"
+
 # Start supervisor (manages nginx + php-fpm + queue)
 echo "Starting services via Supervisor..."
-exec supervisord -c /etc/supervisor/conf.d/supervisord.conf
+exec supervisord -n -c /etc/supervisor/conf.d/supervisord.conf

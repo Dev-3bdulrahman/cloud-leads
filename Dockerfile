@@ -53,6 +53,15 @@ RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
+# Ensure www-data user exists and Nginx uses it
+RUN set -x \
+    && addgroup -g 1000 -S www-data || true \
+    && adduser -u 1000 -D -S -G www-data www-data || true \
+    && sed -i 's/user nginx;/user www-data;/g' /etc/nginx/nginx.conf
+
+# Remove default PHP-FPM configurations to avoid conflicts
+RUN rm -f /usr/local/etc/php-fpm.d/*.conf /usr/local/etc/php-fpm.d/*.conf.default
+
 # Set working directory
 WORKDIR /var/www/html
 
@@ -67,8 +76,12 @@ RUN composer install --optimize-autoloader --no-dev --no-interaction --no-progre
 
 # Set correct permissions
 RUN chown -R www-data:www-data /var/www/html \
-    && chmod -R 755 /var/www/html/storage \
-    && chmod -R 755 /var/www/html/bootstrap/cache
+    && find /var/www/html -type d -exec chmod 755 {} \; \
+    && find /var/www/html -type f -exec chmod 644 {} \; \
+    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+
+# Ensure /var/run is writable for Nginx/PID files
+RUN mkdir -p /var/run && chown -R www-data:www-data /var/run
 
 # Copy configuration files (ensure these paths exist in your repo)
 COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
