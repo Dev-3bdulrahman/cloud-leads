@@ -5,8 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: cloud_app
-    restart: unless-stopped
+    image: cloud-app:latest
+    container_name: cloud-app
+    restart: always
     environment:
       - APP_ENV=${APP_ENV:-production}
       - APP_KEY=${APP_KEY}
@@ -24,8 +25,8 @@ services:
       - QUEUE_CONNECTION=${QUEUE_CONNECTION:-redis}
     volumes:
       - storage_data:/var/www/html/storage
-    ports:
-      - "${APP_PORT:-8000}:80"
+    expose:
+      - "3000"
     networks:
       - coolify
     depends_on:
@@ -48,7 +49,7 @@ services:
     networks:
       - coolify
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-secret}"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-p${DB_ROOT_PASSWORD:-secret}" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -63,7 +64,7 @@ services:
     networks:
       - coolify
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5

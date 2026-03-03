@@ -1,99 +1,83 @@
-# Stage 1: Build Node.js assets
-FROM node:20-alpine AS node-builder
-WORKDIR /app
-COPY package*.json ./
-# Use npm install as a fallback since package-lock.json might be missing
-RUN npm install
-COPY . .
-RUN npm run build
-
-# Stage 2: Final PHP + Nginx image
-FROM php:8.2-fpm-alpine
-
-LABEL maintainer="cloud.aaifgroup.com"
+# Base image
+FROM php:8.3-fpm-alpine
 
 # Install system dependencies
 RUN apk add --no-cache \
     nginx \
     supervisor \
-    curl \
+    nodejs \
+    npm \
+    libpng-dev \
+    libjpeg-turbo-dev \
+    freetype-dev \
+    libzip-dev \
     zip \
     unzip \
     git \
-    libpng-dev \
-    libjpeg-turbo-dev \
-    libwebp-dev \
-    freetype-dev \
-    libzip-dev \
+    curl \
     oniguruma-dev \
+    libxml2-dev \
     icu-dev \
-    tzdata \
-    $PHPIZE_DEPS
+    bash \
+    shadow
 
-# Set timezone
-ENV TZ=UTC
-RUN cp /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+# Sync www-data UID/GID with host (1000)
+RUN usermod -u 1000 www-data && groupmod -g 1000 www-data
 
 # Install PHP extensions
-RUN docker-php-ext-configure gd --with-freetype --with-jpeg --with-webp \
+RUN docker-php-ext-configure gd --with-freetype --with-jpeg \
     && docker-php-ext-install -j$(nproc) \
+    gd \
+    zip \
     pdo_mysql \
     mbstring \
     exif \
     pcntl \
     bcmath \
-    gd \
-    zip \
-    intl \
-    opcache \
-    && pecl install redis \
-    && docker-php-ext-enable redis \
-    && apk del $PHPIZE_DEPS
+    xml \
+    intl
+
+# 🔥 CONFIGURE PHP-FPM FOR UNIX SOCKET (FIX 502)
+RUN echo "listen = /tmp/php-fpm.sock" > /usr/local/etc/php-fpm.d/zz-docker.conf \
+    && echo "listen.mode = 0666" >> /usr/local/etc/php-fpm.d/zz-docker.conf
+
+# Configure PHP for large uploads
+RUN echo "upload_max_filesize = 2048M" > /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "post_max_size = 2048M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "memory_limit = 512M" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "max_execution_time = 600" >> /usr/local/etc/php/conf.d/uploads.ini \
+    && echo "max_input_time = 600" >> /usr/local/etc/php/conf.d/uploads.ini
 
 # Install Composer
 COPY --from=composer:latest /usr/bin/composer /usr/bin/composer
 
-# Ensure www-data user exists and Nginx uses it
-RUN set -x \
-    && addgroup -g 1000 -S www-data || true \
-    && adduser -u 1000 -D -S -G www-data www-data || true \
-    && sed -i 's/user nginx;/user www-data;/g' /etc/nginx/nginx.conf
-
-# Remove default PHP-FPM configurations to avoid conflicts
-RUN rm -f /usr/local/etc/php-fpm.d/*.conf /usr/local/etc/php-fpm.d/*.conf.default
-
 # Set working directory
 WORKDIR /var/www/html
 
-# Copy application files
+# Copy application code
 COPY . .
 
-# Copy built assets from Stage 1
-COPY --from=node-builder /app/public/build ./public/build
+# Install PHP dependencies
+RUN composer install --no-interaction --optimize-autoloader --no-dev
 
-# Install PHP dependencies (production)
-RUN composer install --optimize-autoloader --no-dev --no-interaction --no-progress
+# Install Node dependencies and build assets
+RUN npm install && npm run build
 
-# Set correct permissions
-RUN chown -R www-data:www-data /var/www/html \
-    && find /var/www/html -type d -exec chmod 755 {} \; \
-    && find /var/www/html -type f -exec chmod 644 {} \; \
-    && chmod -R 775 /var/www/html/storage /var/www/html/bootstrap/cache
+# Configure Nginx
+COPY nginx.conf /etc/nginx/http.d/default.conf
 
-# Ensure /var/run is writable for Nginx/PID files
-RUN mkdir -p /var/run && chown -R www-data:www-data /var/run
+# Configure Supervisor
+COPY supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-# Copy configuration files (ensure these paths exist in your repo)
-RUN rm -rf /etc/nginx/http.d/*
-COPY docker/nginx/default.conf /etc/nginx/http.d/default.conf
-COPY docker/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY docker/php/opcache.ini /usr/local/etc/php/conf.d/opcache.ini
-COPY docker/php/www.conf /usr/local/etc/php-fpm.d/www.conf
+# Setup entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
 
-# Copy and set entrypoint
-COPY docker/entrypoint.sh /usr/local/bin/entrypoint.sh
-RUN chmod +x /usr/local/bin/entrypoint.sh
+# Set permissions
+RUN chown -R www-data:www-data /var/www/html
 
-EXPOSE 80
+# Expose port
+EXPOSE 3000
 
-ENTRYPOINT ["/usr/local/bin/entrypoint.sh"]
+# Entrypoint
+ENTRYPOINT ["docker-entrypoint.sh"]
